@@ -1,0 +1,87 @@
+---
+apiVersion: ansible.crossplane.io/v1alpha1
+kind: ProviderConfig
+metadata:
+  name: default
+spec:
+  credentials:
+  - filename: tor-password
+    source: Secret
+    secretRef:
+      namespace: crossplane-system
+      name: tor-password
+      key: tor-password
+  requirements: |
+    ---
+    collections:
+      # Install a collection from Ansible Galaxy.
+      - name: cisco.nxos
+        version: 6.0.3
+        source: https://galaxy.ansible.com
+---
+apiVersion: ansible.crossplane.io/v1alpha1
+kind: AnsibleRun
+metadata:
+  name: example
+spec:
+  forProvider:
+    vars:
+      ansible_user: vagrant
+    inventoryInline: 10.7.1.30
+    playbookInline: |
+      ---
+      - hosts: all
+        gather_facts: false
+        become: true
+        vars:
+           ansible_connection: ansible.netcommon.network_cli
+           ansible_network_os: cisco.nxos.nxos
+
+        pre_tasks:
+        - name: Set ToR Password
+          set_fact:
+            ansible_password: "{{ lookup('ansible.builtin.file', 'tor-password') }}"
+
+        tasks:
+        - name: Configure Interface
+          block:
+          - name: Set vlan
+            cisco.nxos.nxos_l2_interfaces:
+              config:
+              - name: Ethernet1/2
+                access:
+                  vlan: 2
+              state: replaced
+
+          - name: Set description, speed and enable
+            cisco.nxos.nxos_interfaces:
+              config:
+              - name: Ethernet1/2
+                description: Configured by Crossplane
+                speed: 1000
+                enabled: true
+              state: merged
+
+          when: ansible_provider_meta.example.state == 'present'
+
+        - name: Un-configure Interface
+          block:
+          - name: Set vlan
+            cisco.nxos.nxos_l2_interfaces:
+              config:
+              - name: Ethernet1/2
+                access:
+                  vlan: 1
+              state: replaced
+
+
+          - name: Set description, speed and disable
+            cisco.nxos.nxos_interfaces:
+              config:
+              - name: Ethernet1/2
+                description: Un-configured by Crossplane
+                speed: 1000
+                enabled: false
+              state: merged
+
+          when: ansible_provider_meta.example.state == 'absent'

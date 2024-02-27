@@ -1,0 +1,38 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata: 
+  name: torinterfaces.example.org
+spec:
+  group: example.org
+  names:
+    kind: TorInterface
+    plural: torinterfaces
+  versions:
+  - name: v1alpha1
+    served: true
+    referenceable: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        required:
+        - spec
+        properties:
+          spec:
+            type: object
+            required:
+            - username
+            - eth_intf
+            - vlan
+            - target_host
+            properties:
+              username:
+                type: string
+              eth_intf:
+                type: string
+              vlan:
+                type: integer
+              target_host:
+                type: string
+
+
+

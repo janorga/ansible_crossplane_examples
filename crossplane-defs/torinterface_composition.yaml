@@ -1,0 +1,105 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: torinterface-composition
+spec:
+  compositeTypeRef:
+    apiVersion: example.org/v1alpha1
+    kind: TorInterface
+  resources:
+
+  - name: torinterface-resource
+    base:
+      apiVersion: ansible.crossplane.io/v1alpha1
+      kind: AnsibleRun
+      metadata:
+        name: ""
+        labels:
+          customer: ""
+      spec:
+        forProvider:
+          vars:
+            ansible_user: vagrant
+            meta_name: ""
+          inventoryInline: ""
+          playbookInline: |
+            ---
+            - hosts: all
+              gather_facts: false
+              become: true
+              vars:
+                ansible_connection: ansible.netcommon.network_cli
+                ansible_network_os: cisco.nxos.nxos
+
+              pre_tasks:
+              - name: Set ToR Password
+                set_fact:
+                  ansible_password: "{{ lookup('ansible.builtin.file', 'tor-password') }}"
+
+              tasks:
+              - name: Configure Interface
+                block:
+                - name: Set vlan
+                  cisco.nxos.nxos_l2_interfaces:
+                    config:
+                    - name: Ethernet1/2
+                      access:
+                        vlan: 2
+                    state: replaced
+
+                - name: Set description, speed and enable
+                  cisco.nxos.nxos_interfaces:
+                    config:
+                    - name: Ethernet1/2
+                      description: Configured by Crossplane
+                      speed: 1000
+                      enabled: true
+                    state: merged
+
+                when: ansible_provider_meta[meta_name].state == 'present'
+
+              - name: Un-configure Interface
+                block:
+                - name: Set vlan
+                  cisco.nxos.nxos_l2_interfaces:
+                    config:
+                    - name: Ethernet1/2
+                      access:
+                        vlan: 1
+                    state: replaced
+
+
+                - name: Set description, speed and disable
+                  cisco.nxos.nxos_interfaces:
+                    config:
+                    - name: Ethernet1/2
+                      description: Un-configured by Crossplane
+                      speed: 1000
+                      enabled: false
+                    state: merged
+
+                when: ansible_provider_meta[meta_name].state == 'absent'
+
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: "metadata.labels.customer"
+      toFieldPath: "metadata.labels.customer"
+    - type: FromCompositeFieldPath
+      fromFieldPath: "spec.target_host"
+      toFieldPath: "spec.forProvider.inventoryInline"
+    - type: CombineFromComposite
+      combine:
+        variables:
+          - fromFieldPath: metadata.name
+        strategy: string
+        string:
+          fmt: "%s-torinterface"
+      toFieldPath: metadata.name
+    - type: CombineFromComposite
+      combine:
+        variables:
+          - fromFieldPath: metadata.name
+        strategy: string
+        string:
+          fmt: "%s-torinterface"
+      toFieldPath: spec.forProvider.vars.meta_name

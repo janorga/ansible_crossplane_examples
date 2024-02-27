@@ -1,0 +1,19 @@
+apiVersion: ansible.crossplane.io/v1alpha1
+kind: ProviderConfig
+metadata:
+  name: default
+spec:
+  credentials:
+  - filename: tor-password
+    source: Secret
+    secretRef:
+      namespace: crossplane-system
+      name: tor-password
+      key: tor-password
+  requirements: |
+    ---
+    collections:
+      # Install a collection from Ansible Galaxy.
+      - name: cisco.nxos
+        version: 6.0.3
+        source: https://galaxy.ansible.com
